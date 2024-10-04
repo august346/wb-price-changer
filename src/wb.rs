@@ -2,14 +2,19 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::Deserialize;
 use std::io::Write;
+use serde_json::Value;
 use tempfile::NamedTempFile;
 use tokio::process::Command;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::info;
 use crate::calc::count_new_basic;
 use crate::db::product::Product;
 use crate::utils;
+
+const JQ_QUERY: &str = r#"{
+    total: (.data.total // null),
+    prices: [.data.products[] | {id: .id, basic: .sizes[0].price.basic, total: .sizes[0].price.total}]
+}"#;
 
 pub async fn calculate_and_set_price(
     token: &str,
@@ -17,15 +22,15 @@ pub async fn calculate_and_set_price(
 ) -> Result<(Vec<Product>, JoinHandle<()>), String> {
     let prices = get_prices(products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
-        .map_err(|_| "Error retrieving prices.".to_string())?;
+        .map_err(|err| utils::make_err(err, "get prices"))?;
 
     let updated_products: Vec<(i32, Product)> = prices
         .iter()
         .zip(products.iter())
-        .map(|((id, price), product)| {
+        .map(|(product_price, product)| {
             let target_price = product.price;
-            let (discounted, new_price) = count_new_basic(target_price, price.total, price.basic);
-            (discounted, Product::new(id.clone(), new_price))
+            let (discounted, new_price) = count_new_basic(target_price, product_price.total, product_price.basic);
+            (discounted, Product::new(product_price.id, new_price))
         })
         .collect();
 
@@ -44,48 +49,53 @@ pub async fn calculate_and_set_price(
     Ok((to_update, handle))
 }
 
-#[derive(Deserialize)]
-pub struct Price {
-    pub basic: i32,
-    pub total: i32,
+pub async fn get_prices(id_list: Vec<i32>) -> Result<Vec<ProductPrice>, Box<dyn std::error::Error>> {
+    match id_list.len() {
+        // 0 => Ok(vec![]),
+        1 => Ok(vec![get_one_price(id_list[0]).await?]),
+        _ => Ok(vec![]),    // TODO need to get many
+    }
 }
 
-pub async fn get_prices(id_list: Vec<i32>) -> Result<Vec<(i32, Price)>, reqwest::Error> {
-    let id = id_list.first().unwrap();
-    let url = format!("https://card.wb.ru/cards/v2/detail?curr=rub&dest=-1257786&nm={}", id);
-    let res: serde_json::Value = Client::new()
+async fn get_one_price(id: i32) -> Result<ProductPrice, Box<dyn std::error::Error>> {
+     let url = format!("https://card.wb.ru/cards/v2/detail?curr=rub&dest=-1257786&nm={}", id);
+    let data: Value = Client::new()
         .get(&url)
         .timeout(Duration::from_secs(60))
         .send()
         .await?
         .json()
         .await?;
-    let price = res["data"]["products"][0]["sizes"][0]["price"].clone();
-    let price: Price = serde_json::from_value(price).unwrap();
-    Ok(vec![(id.clone(), price)])
+
+    let page = parse_json(data).await?;
+    let price = page.prices
+        .first()
+        .ok_or_else(|| "no prices on page")?;
+
+    Ok(price.clone())
 }
 
 #[derive(Deserialize, Debug)]
-struct FilteredResponse {
-    total: u32,
-    products: Vec<FilteredProduct>,
+pub struct ProductPricesPage {
+    total: Option<i32>,
+    prices: Vec<ProductPrice>,
 }
 
-#[derive(Deserialize, Debug)]
-struct FilteredProduct {
-    id: u64,
-    basic: u64,
-    total: u64,
+#[derive(Clone, Deserialize, Debug)]
+pub struct ProductPrice {
+    id: i32,
+    basic: i32,
+    total: i32,
 }
 
-pub async fn get_supplier_catalog(supplier: i32, limit: Option<i32>, page: Option<i32>) -> Result<(), String> {
+pub async fn get_supplier_catalog(supplier: i32, limit: Option<i32>, page: Option<i32>) -> Result<ProductPricesPage, String> {
     let catalog_url = "https://catalog.wb.ru/sellers/v2/catalog";
     let url = format!(
         "{catalog_url}?curr=rub&dest=-1257786&sort=newly&supplier={supplier}&limit={}&page={}",
         limit.unwrap_or(300),
         page.unwrap_or(1)
     );
-    let data: serde_json::Value = Client::new()
+    let data = Client::new()
         .get(&url)
         .timeout(Duration::from_secs(60))
         .send()
@@ -95,23 +105,25 @@ pub async fn get_supplier_catalog(supplier: i32, limit: Option<i32>, page: Optio
         .await
         .map_err(|err| utils::make_err(Box::new(err), "parse get catalog response"))?;
 
-    let mut temp_file = NamedTempFile::new().expect("Failed to create temporary file");
-    writeln!(temp_file, "{}", data).expect("Failed to write to temporary file");
+    parse_json(data).await
+}
+
+async fn parse_json(data: Value) -> Result<ProductPricesPage, String> {
+    let mut temp_file = NamedTempFile::new()
+        .map_err(|err| utils::make_err(Box::new(err), "create temporary file"))?;
+    writeln!(temp_file, "{}", data)
+        .map_err(|err| utils::make_err(Box::new(err), "write to temporary file"))?;
 
     let output = Command::new("jq")
-        .arg("{ total: .data.total, products: [.data.products[] | {id: .id, basic: .sizes[0].price.basic, total: .sizes[0].price.total}]}")
+        .arg(JQ_QUERY)
         .arg(temp_file.path())
         .output()
         .await
-        .expect("Failed to execute jq");
+        .map_err(|err| utils::make_err(Box::new(err), "execute jq"))?;
 
     let filtered_json = String::from_utf8_lossy(&output.stdout);
-    let filtered_response: FilteredResponse =
-        serde_json::from_str(&filtered_json).expect("Failed to parse filtered JSON");
-
-    info!("{:?}", filtered_response);
-
-    Ok(())
+    Ok(serde_json::from_str(&filtered_json)
+        .map_err(|err| utils::make_err(Box::new(err), "parse filtered JSON"))?)
 }
 
 pub async fn set_price(token: &str, products: Vec<Product>) -> Result<(), reqwest::Error> {
@@ -143,11 +155,10 @@ async fn one_more_try(token: &str, updated_products: Vec<(i32, Product)>) -> Res
         .iter()
         .zip(updated_products.iter())
         .filter(
-            |((_, price), (discounted, _))| price.total / 100 != *discounted)
-        .map(|((id, price), (_, product))| {
-            let target_price = product.price;
-            let (_, new_price) = count_new_basic(target_price, price.total, price.basic);
-            Product::new(id.clone(), new_price)
+            |(product_price, (discounted, _))| product_price.total / 100 != *discounted)
+        .map(|(product_price, (_, product))| {
+            let (_, new_price) = count_new_basic(product.price, product_price.total, product_price.basic);
+            Product::new(product_price.id, new_price)
         })
         .collect();
 

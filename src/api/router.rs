@@ -52,17 +52,12 @@ async fn update_price(
     }
 }
 
-#[derive(Serialize)]
-struct ApiKey {
-    api_key: String
-}
-
 async fn create_api_key(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, AppError> {
     let supplier = state.create_supplier()
         .await
         .map_err(|err| AppError::unexpected(&err))?;
 
-    Ok((StatusCode::CREATED, Json(ApiKey { api_key: supplier.api_key })))
+    Ok((StatusCode::CREATED, supplier.api_key))
 }
 
 #[derive(Deserialize)]
