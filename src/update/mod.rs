@@ -10,7 +10,7 @@ pub async fn run(app_state: Arc<AppState>) -> Result<(), String> {
             .get_suppliers(300, 1)
             .await?;
         for s in suppliers {
-            // info!("{}", s);
+            info!("{}", s);
         }
 
         info!("sleep 10 sec");
