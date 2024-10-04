@@ -18,7 +18,7 @@ const JQ_QUERY: &str = r#"{
 
 pub async fn calculate_and_set_price(
     token: &str,
-    products: Vec<Product>
+    products: Vec<Product>,
 ) -> Result<(Vec<Product>, JoinHandle<()>), String> {
     let prices = get_prices(products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
@@ -58,7 +58,7 @@ pub async fn get_prices(id_list: Vec<i32>) -> Result<Vec<ProductPrice>, Box<dyn 
 }
 
 async fn get_one_price(id: i32) -> Result<ProductPrice, Box<dyn std::error::Error>> {
-     let url = format!("https://card.wb.ru/cards/v2/detail?curr=rub&dest=-1257786&nm={}", id);
+    let url = format!("https://card.wb.ru/cards/v2/detail?curr=rub&dest=-1257786&nm={}", id);
     let data: Value = Client::new()
         .get(&url)
         .timeout(Duration::from_secs(60))
@@ -164,8 +164,8 @@ async fn one_more_try(token: &str, updated_products: Vec<(i32, Product)>) -> Res
 
     if !products.is_empty() {
         set_price(token, products)
-        .await
-        .map_err(|_| "Error setting price.".to_string())?;
+            .await
+            .map_err(|_| "Error setting price.".to_string())?;
     }
 
     Ok(())
