@@ -1,6 +1,7 @@
 mod router;
 mod middlewares;
 mod ping;
+mod error;
 
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};

@@ -1,7 +1,9 @@
 use std::sync::Arc;
 use axum::{Extension, Json, middleware, Router};
 use axum::extract::State;
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use reqwest::StatusCode;
 use serde::Deserialize;
 use crate::api::middlewares::get_auth;
 use crate::api::ping::ping;
@@ -33,20 +35,20 @@ async fn update_price(
     State(state): State<Arc<AppState>>,
     Extension(supplier): Extension<Supplier>,
     Json(input): Json<Product>,
-) -> Json<String> {
+) -> Result<impl IntoResponse, StatusCode> {
     state.task_manager.remove_task(input.id).await;
 
     let wb_jwt = match supplier.wb_jwt {
-        None => return Json("Need set JWT".to_string()),
+        None => return Ok(Json("Need set JWT".to_string())),
         Some(token) => token,
     };
 
     match calculate_and_set_price(input.id, input.price, &wb_jwt).await {
         Ok((new_price, handle)) => {
             state.task_manager.add_task(input.id, handle).await;
-            Json(format!("New price for ID {} set to {}", input.id, new_price))
+            Ok(Json(format!("New price for ID {} set to {}", input.id, new_price)))
         },
-        Err(err_msg) => Json(err_msg),
+        Err(err_msg) => Ok(Json(err_msg)),
     }
 }
 

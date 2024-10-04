@@ -8,27 +8,21 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::info;
 use crate::calc::count_new_basic;
+use crate::db::product::Product;
 use crate::utils;
 
 pub async fn calculate_and_set_price(id: i32, target_price: i32, jwt: &str) -> Result<(i32, JoinHandle<()>), String> {
     let Price { basic, total } = get_prices(id).await.map_err(|_| "Error retrieving prices.".to_string())?;
     let (discounted, new_price) = count_new_basic(target_price, total, basic);
 
-    set_price(id, jwt, new_price).await.map_err(|_| "Error setting price.".to_string())?;
+    set_price(jwt, vec![Product::new(id, new_price)]).await.map_err(|_| "Error setting price.".to_string())?;
 
     let id_clone = id;
     let jwt_clone = jwt.to_string();
     let handle = tokio::spawn(async move {
         sleep(Duration::from_secs(10)).await;
 
-        if let Ok(Price { basic, total }) = get_prices(id_clone).await {
-            if total / 100 != discounted {
-                let (_, updated_price) = count_new_basic(target_price, total, basic);
-                if let Err(_) = set_price(id_clone, &jwt_clone, updated_price).await {
-                    eprintln!("Error setting price in the background thread.");
-                }
-            }
-        }
+        let _ = one_more_try(id_clone, &jwt_clone, target_price, discounted).await;
     });
 
     Ok((new_price, handle))
@@ -102,13 +96,32 @@ pub async fn get_supplier_catalog(supplier: i32, limit: Option<i32>, page: Optio
     Ok(())
 }
 
-pub async fn set_price(id: i32, token: &str, price: i32) -> Result<(), reqwest::Error> {
+pub async fn set_price(token: &str, products: Vec<Product>) -> Result<(), reqwest::Error> {
+    let data = products.iter()
+        .map(|product| serde_json::json!({ "nmID": product.id, "price": product.price }))
+        .collect::<Vec<_>>();
+
     Client::new()
         .post("https://discounts-prices-api.wildberries.ru/api/v2/upload/task")
         .timeout(Duration::from_secs(60))
         .header("Authorization", token)
-        .json(&serde_json::json!({ "data": [{ "nmID": id, "price": price }] }))
+        .json(&serde_json::json!({ "data": data }))
         .send()
         .await?;
+
+    Ok(())
+}
+
+async fn one_more_try(id: i32, jwt: &str, target: i32, discounted: i32) -> Result<(), String> {
+    let prices = get_prices(id)
+        .await
+        .map_err(|err| utils::make_err(Box::new(err), "1mt get price"))?;
+    if prices.total / 100 != discounted {
+        let (_, updated_price) = count_new_basic(target, prices.total, prices.basic);
+        set_price(jwt, vec![Product::new(id, updated_price)])
+            .await
+            .map_err(|err| utils::make_err(Box::new(err), "1mt set price"))?;
+    }
+
     Ok(())
 }
