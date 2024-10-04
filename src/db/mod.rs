@@ -45,4 +45,20 @@ impl DB {
 
         Err("api_key not found".to_string())
     }
+
+    pub async fn get_suppliers(&self, limit: usize, page: usize) -> Result<Vec<Supplier>, String> {
+        let suppliers = self.suppliers.lock().await;
+
+        let start_index = (page - 1) * limit;
+
+        let mut suppliers_to_return: Vec<Supplier> = Vec::new();
+
+        for (i, (_, supplier)) in suppliers.iter().enumerate() {
+            if i >= start_index && suppliers_to_return.len() < limit {
+                suppliers_to_return.push(supplier.clone());
+            }
+        }
+
+        Ok(suppliers_to_return)
+    }
 }

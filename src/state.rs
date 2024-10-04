@@ -67,4 +67,8 @@ impl AppState {
     pub async fn set_wb_jwt(&self, api_key: &str, jwt: &str) -> Result<(), String> {
         self.db.set_wb_jwt(api_key, jwt).await
     }
+
+    pub async fn get_suppliers(&self, limit: usize, page: usize) -> Result<Vec<Supplier>, String> {
+        self.db.get_suppliers(limit, page).await
+    }
 }

@@ -24,9 +24,23 @@ async fn main() -> Result<(), String> {
         .expect("Failed to build AppState"));
     app_state.run_migrations().await?;
 
-    wb::get_supplier_catalog(688305, None, None).await?;
+    // wb::get_supplier_catalog(688305, None, None).await?;
 
-    api::run(app_state).await?;
+    let api_handle = tokio::spawn({
+        let app_state = app_state.clone();
+        async move {
+            api::run(app_state).await
+        }
+    });
+
+    let update_handle = tokio::spawn({
+        let app_state = app_state.clone();
+        async move {
+            update::run(app_state).await
+        }
+    });
+
+    let _ = tokio::join!(api_handle, update_handle);
 
     Ok(())
 }
