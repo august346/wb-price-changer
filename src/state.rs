@@ -1,0 +1,70 @@
+use std::collections::HashMap;
+use std::sync::{Arc};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+use tracing::debug;
+use crate::db::DB;
+use crate::db::supplier::Supplier;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub task_manager: Arc<TaskManager>,
+    db: Arc<DB>,
+}
+
+pub struct TaskManager {
+    tasks: Mutex<HashMap<i32, JoinHandle<()>>>,
+}
+
+impl TaskManager {
+    fn new() -> Self {
+        TaskManager {
+            tasks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub async fn remove_task(&self, id: i32) {
+        let mut tasks = self.tasks.lock().await;
+        if let Some(existing_task) = tasks.remove(&id) {
+            if !existing_task.is_finished() {
+                existing_task.abort();
+                debug!("task_id={id} aborted");
+            }
+        }
+    }
+
+    pub async fn add_task(&self, id: i32, handle: JoinHandle<()>) {
+        let mut tasks = self.tasks.lock().await;
+        tasks.insert(id, handle);
+        debug!("task_id={id} inserted");
+    }
+}
+
+impl AppState {
+    pub async fn setup_app_state() -> Result<AppState, String> {
+        Ok(AppState {
+            task_manager: Arc::new(TaskManager::new()),
+            db: Arc::new(DB::new())
+        })
+    }
+
+    pub async fn run_migrations(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub async fn get_supplier(&self, api_key: &str) -> Result<Supplier, String> {
+        match self.db.get_supplier(api_key).await {
+            Ok(Some(supplier)) => Ok(supplier),
+            Ok(None) => Err("Invalid api key".to_string()),
+            Err(err) => Err(err)
+        }
+    }
+
+    pub async fn create_supplier(&self) -> Result<Supplier, String> {
+        self.db.create_supplier().await
+    }
+
+    pub async fn set_wb_jwt(&self, api_key: &str, jwt: &str) -> Result<(), String> {
+        self.db.set_wb_jwt(api_key, jwt).await
+    }
+}
