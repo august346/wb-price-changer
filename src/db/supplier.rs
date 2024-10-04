@@ -5,7 +5,7 @@ use crate::db::product::Product;
 #[derive(Debug, Clone)]
 pub struct Supplier {
     pub api_key: String,
-    wb_id: Option<i64>,
+    pub wb_id: Option<i64>,
     pub wb_jwt: Option<String>,
     goods: Vec<Product>
 }
