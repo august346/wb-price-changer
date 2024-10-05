@@ -4,6 +4,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::debug;
 use crate::db::DB;
+use crate::db::product::Product;
 use crate::db::supplier::Supplier;
 
 #[derive(Clone)]
@@ -74,5 +75,9 @@ impl AppState {
 
     pub async fn set_wb_id(&self, api_key: &str, wb_id: i32) -> Result<(), String> {
         self.db.set_wb_id(api_key, wb_id).await
+    }
+
+    pub async fn add_goods(&self, api_key: &str, products: &Vec<Product>) -> Result<(), String> {
+        self.db.add_goods(api_key, products).await
     }
 }

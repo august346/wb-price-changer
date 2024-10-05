@@ -49,6 +49,7 @@ async fn update_price(
                     .map_err(|err| AppError::unexpected(&err))?;
             }
             state.task_manager.add_task(input.id, handle).await;
+            let _ = state.add_goods(&supplier.api_key, &products).await;
             Ok(Json(PriceSet { products }))
         },
         Err(err_msg) => Err(AppError::unexpected(&err_msg)),

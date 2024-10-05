@@ -3,6 +3,7 @@ pub mod product;
 
 use std::collections::HashMap;
 use tokio::sync::Mutex;
+use crate::db::product::Product;
 use crate::db::supplier::Supplier;
 use crate::utils;
 
@@ -29,12 +30,15 @@ impl DB {
 
         let mut suppliers = self.suppliers.lock().await;
 
-        if suppliers.insert(api_key, supplier.clone()).is_some() {
+        if suppliers.contains_key(&api_key) {
             return Err("apikey already exists".to_string());
         }
 
+        suppliers.insert(api_key, supplier.clone());
+
         Ok(supplier)
     }
+
 
     pub async fn set_wb_jwt(&self, api_key: &str, jwt: &str) -> Result<(), String> {
         let mut suppliers = self.suppliers.lock().await;
@@ -51,6 +55,15 @@ impl DB {
         if let Some(sup) = suppliers.get_mut(api_key) {
             sup.wb_id = Some(wb_id);
             return Ok(());
+        }
+
+        Err("api_key not found".to_string())
+    }
+
+    pub async fn add_goods(&self, api_key: &str, products: &Vec<Product>) -> Result<(), String> {
+        let mut suppliers = self.suppliers.lock().await;
+        if let Some(sup) = suppliers.get_mut(api_key) {
+            return sup.add_goods(products).await
         }
 
         Err("api_key not found".to_string())
