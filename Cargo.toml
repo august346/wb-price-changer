@@ -16,3 +16,4 @@ log = "0.4.22"
 tempfile = "3.13.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 thiserror = "1.0.64"
+futures = "0.3.31"

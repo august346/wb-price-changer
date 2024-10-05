@@ -28,7 +28,7 @@ pub fn get_router(app_state: Arc<AppState>) -> Router {
 
 #[derive(Serialize)]
 struct PriceSet {
-    products: Vec<Product>
+    products: Vec<Product>,
 }
 
 async fn update_price(
@@ -48,10 +48,12 @@ async fn update_price(
                     .await
                     .map_err(|err| AppError::unexpected(&err))?;
             }
-            state.task_manager.add_task(input.id, handle).await;
+            if let Some(handle) = handle {
+                state.task_manager.add_task(input.id, handle).await;
+            }
             let _ = state.add_goods(&supplier.api_key, &vec![input]).await;
             Ok(Json(PriceSet { products }))
-        },
+        }
         Err(err_msg) => Err(AppError::unexpected(&err_msg)),
     }
 }
@@ -66,12 +68,12 @@ async fn create_api_key(State(state): State<Arc<AppState>>) -> Result<impl IntoR
 
 #[derive(Deserialize)]
 struct SetWbJwt {
-    jwt: String
+    jwt: String,
 }
 
 #[derive(Serialize)]
 struct Ok {
-    ok: bool
+    ok: bool,
 }
 
 async fn set_wb_jwt(

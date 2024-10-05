@@ -21,7 +21,7 @@ pub async fn calculate_and_set_price(
     supplier_id: Option<i32>,
     token: &str,
     products: Vec<Product>,
-) -> Result<(Option<i32>, Vec<Product>, JoinHandle<()>), String> {
+) -> Result<(Option<i32>, Vec<Product>, Option<JoinHandle<()>>), String> {
     let prices_page = get_prices(supplier_id, products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
         .map_err(|err| utils::make_err(err, "get prices"))?;
@@ -33,9 +33,16 @@ pub async fn calculate_and_set_price(
         .map(|(product_price, product)| {
             let target_price = product.price;
             let (discounted, new_price) = count_new_basic(target_price, product_price.total, product_price.basic);
-            (discounted, Product::new(product_price.id, new_price))
+            (discounted, product_price.total, Product::new(product_price.id, new_price))
         })
+        .filter(
+            |(discounted, total, _)| total / 100 != *discounted)
+        .map(|(discounted, _, product)| (discounted, product))
         .collect();
+
+    if updated_products.is_empty() {
+        return Ok((supplier_id, vec![], None))
+    }
 
     let to_update: Vec<Product> = updated_products.iter().map(|(_, p)| p.clone()).collect();
     set_price(token, to_update.clone())
@@ -49,7 +56,7 @@ pub async fn calculate_and_set_price(
         let _ = one_more_try(prices_page.supplier_id, &token_clone, updated_products).await;
     });
 
-    Ok((prices_page.supplier_id, to_update, handle))
+    Ok((prices_page.supplier_id, to_update, Some(handle)))
 }
 
 pub async fn get_prices(supplier_id: Option<i32>, id_list: Vec<i32>) -> Result<ProductPricesPage, Box<dyn std::error::Error>> {
