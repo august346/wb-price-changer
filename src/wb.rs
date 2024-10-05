@@ -21,7 +21,7 @@ pub async fn calculate_and_set_price(
     supplier_id: Option<i32>,
     token: &str,
     products: Vec<Product>,
-) -> Result<(Option<i32>, Vec<Product>, JoinHandle<()>), String> {
+) -> Result<(Option<i32>, Vec<Product>, Option<JoinHandle<()>>), String> {
     let prices_page = get_prices(supplier_id, products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
         .map_err(|err| utils::make_err(err, "get prices"))?;
@@ -150,7 +150,9 @@ async fn parse_json(data: Value) -> Result<ProductPricesPage, String> {
 
 pub async fn set_price(token: &str, products: Vec<Product>) -> Result<(), reqwest::Error> {
     let data = products.iter()
-        .map(|product| serde_json::json!({ "nmID": product.id, "price": product.price }))
+        .map(|product| serde_json::json!(
+            { "nmID": product.id, "price": product.price }
+        ))
         .collect::<Vec<_>>();
 
     Client::new()

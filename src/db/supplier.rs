@@ -8,7 +8,7 @@ pub struct Supplier {
     pub api_key: String,
     pub wb_id: Option<i32>,
     pub wb_jwt: Option<String>,
-    goods: HashMap<i32, Product>
+    pub goods: HashMap<i32, Product>
 }
 
 impl Display for Supplier {

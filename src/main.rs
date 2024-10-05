@@ -40,7 +40,10 @@ async fn main() -> Result<(), String> {
         }
     });
 
-    let _ = tokio::join!(api_handle, update_handle);
+    let _ = tokio::join!(
+        api_handle,
+        update_handle
+    );
 
     Ok(())
 }
