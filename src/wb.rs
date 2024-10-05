@@ -12,19 +12,22 @@ use crate::db::product::Product;
 use crate::utils;
 
 const JQ_QUERY: &str = r#"{
+    supplier_id: (.data.products[0].supplierId // null),
     total: (.data.total // null),
     prices: [.data.products[] | {id: .id, basic: .sizes[0].price.basic, total: .sizes[0].price.total}]
 }"#;
 
 pub async fn calculate_and_set_price(
+    supplier_id: Option<i32>,
     token: &str,
     products: Vec<Product>,
-) -> Result<(Vec<Product>, JoinHandle<()>), String> {
-    let prices = get_prices(products.iter().map(|p| p.id).collect::<Vec<i32>>())
+) -> Result<(Option<i32>, Vec<Product>, JoinHandle<()>), String> {
+    let prices_page = get_prices(supplier_id, products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
         .map_err(|err| utils::make_err(err, "get prices"))?;
 
-    let updated_products: Vec<(i32, Product)> = prices
+    let updated_products: Vec<(i32, Product)> = prices_page
+        .prices
         .iter()
         .zip(products.iter())
         .map(|(product_price, product)| {
@@ -43,21 +46,29 @@ pub async fn calculate_and_set_price(
     let handle = tokio::spawn(async move {
         sleep(Duration::from_secs(10)).await;
 
-        let _ = one_more_try(&token_clone, updated_products).await;
+        let _ = one_more_try(prices_page.supplier_id, &token_clone, updated_products).await;
     });
 
-    Ok((to_update, handle))
+    Ok((prices_page.supplier_id, to_update, handle))
 }
 
-pub async fn get_prices(id_list: Vec<i32>) -> Result<Vec<ProductPrice>, Box<dyn std::error::Error>> {
+pub async fn get_prices(supplier_id: Option<i32>, id_list: Vec<i32>) -> Result<ProductPricesPage, Box<dyn std::error::Error>> {
     match id_list.len() {
-        // 0 => Ok(vec![]),
-        1 => Ok(vec![get_one_price(id_list[0]).await?]),
-        _ => Ok(vec![]),    // TODO need to get many
+        0 => Ok(ProductPricesPage::default()),
+        1 => get_one_price(id_list[0]).await,
+        _ => Ok(
+            get_supplier_catalog(
+                supplier_id
+                    .ok_or_else(
+                        || "Not available to get many prices without supplier_id".to_string()
+                    )?, None, None)
+                .await?
+                .with_goods(id_list)
+        )
     }
 }
 
-async fn get_one_price(id: i32) -> Result<ProductPrice, Box<dyn std::error::Error>> {
+async fn get_one_price(id: i32) -> Result<ProductPricesPage, Box<dyn std::error::Error>> {
     let url = format!("https://card.wb.ru/cards/v2/detail?curr=rub&dest=-1257786&nm={}", id);
     let data: Value = Client::new()
         .get(&url)
@@ -67,18 +78,29 @@ async fn get_one_price(id: i32) -> Result<ProductPrice, Box<dyn std::error::Erro
         .json()
         .await?;
 
-    let page = parse_json(data).await?;
-    let price = page.prices
-        .first()
-        .ok_or_else(|| "no prices on page")?;
-
-    Ok(price.clone())
+    Ok(parse_json(data).await?)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub struct ProductPricesPage {
+    supplier_id: Option<i32>,
     total: Option<i32>,
     prices: Vec<ProductPrice>,
+}
+
+impl ProductPricesPage {
+    fn with_goods(&self, id_list: Vec<i32>) -> Self {
+        Self {
+            supplier_id: self.supplier_id,
+            total: self.total,
+            prices: self
+                .prices
+                .clone()
+                .into_iter()
+                .filter(|product_price| id_list.contains(&product_price.id))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Clone, Deserialize, Debug)]
@@ -142,8 +164,9 @@ pub async fn set_price(token: &str, products: Vec<Product>) -> Result<(), reqwes
     Ok(())
 }
 
-async fn one_more_try(token: &str, updated_products: Vec<(i32, Product)>) -> Result<(), String> {
-    let prices = get_prices(
+async fn one_more_try(supplier_id: Option<i32>, token: &str, updated_products: Vec<(i32, Product)>) -> Result<(), String> {
+    let prices_pate = get_prices(
+        supplier_id,
         updated_products
             .iter()
             .map(|(_, p)| p.id)
@@ -151,7 +174,8 @@ async fn one_more_try(token: &str, updated_products: Vec<(i32, Product)>) -> Res
         .await
         .map_err(|_| "Error retrieving prices.".to_string())?;
 
-    let products: Vec<Product> = prices
+    let products: Vec<Product> = prices_pate
+        .prices
         .iter()
         .zip(updated_products.iter())
         .filter(

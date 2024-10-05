@@ -71,4 +71,8 @@ impl AppState {
     pub async fn get_suppliers(&self, limit: usize, page: usize) -> Result<Vec<Supplier>, String> {
         self.db.get_suppliers(limit, page).await
     }
+
+    pub async fn set_wb_id(&self, api_key: &str, wb_id: i32) -> Result<(), String> {
+        self.db.set_wb_id(api_key, wb_id).await
+    }
 }

@@ -46,6 +46,16 @@ impl DB {
         Err("api_key not found".to_string())
     }
 
+    pub async fn set_wb_id(&self, api_key: &str, wb_id: i32) -> Result<(), String> {
+        let mut suppliers = self.suppliers.lock().await;
+        if let Some(sup) = suppliers.get_mut(api_key) {
+            sup.wb_id = Some(wb_id);
+            return Ok(());
+        }
+
+        Err("api_key not found".to_string())
+    }
+
     pub async fn get_suppliers(&self, limit: usize, page: usize) -> Result<Vec<Supplier>, String> {
         let suppliers = self.suppliers.lock().await;
 

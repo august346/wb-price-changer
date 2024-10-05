@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use crate::db::product::Product;
@@ -5,9 +6,9 @@ use crate::db::product::Product;
 #[derive(Debug, Clone)]
 pub struct Supplier {
     pub api_key: String,
-    pub wb_id: Option<i64>,
+    pub wb_id: Option<i32>,
     pub wb_jwt: Option<String>,
-    goods: Vec<Product>
+    goods: HashMap<String, Product>
 }
 
 impl Display for Supplier {
@@ -24,6 +25,7 @@ impl Display for Supplier {
 
 impl Supplier {
     pub async fn new(api_key: &str) -> Result<Self, String> {
-        Ok(Self { api_key: api_key.to_string(), wb_id: None, wb_jwt: None, goods: vec![] })
+        let goods = HashMap::new();
+        Ok(Self { api_key: api_key.to_string(), wb_id: None, wb_jwt: None, goods })
     }
 }
