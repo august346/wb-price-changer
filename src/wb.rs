@@ -21,7 +21,7 @@ pub async fn calculate_and_set_price(
     supplier_id: Option<i32>,
     token: &str,
     products: Vec<Product>,
-) -> Result<(Option<i32>, Vec<Product>, Option<JoinHandle<()>>), String> {
+) -> Result<(Option<i32>, Vec<Product>, JoinHandle<()>), String> {
     let prices_page = get_prices(supplier_id, products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
         .map_err(|err| utils::make_err(err, "get prices"))?;
