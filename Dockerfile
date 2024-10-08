@@ -23,7 +23,7 @@ cp ./target/release/$APP_NAME /bin/server
 
 FROM alpine:3.18 AS final
 
-RUN apk add --no-cache libgcc
+RUN apk add --no-cache libgcc jq
 
 ARG UID=10001
 RUN adduser \
