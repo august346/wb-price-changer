@@ -6,22 +6,26 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use crate::api::error::AppError;
-use crate::api::middlewares::get_auth;
+use crate::api::middlewares::{get_auth, get_super};
 use crate::api::ping::ping;
 use crate::db::product::Product;
 use crate::db::supplier::Supplier;
 use crate::state::AppState;
+use crate::utils;
 use crate::wb::calculate_and_set_price;
 
 pub fn get_router(app_state: Arc<AppState>) -> Router {
     let protected_routes = Router::new()
+        .route("/state", get(get_state))
         .route("/set_wb_jwt", post(set_wb_jwt))
         .route("/update_price", post(update_price))
         .layer(middleware::from_fn_with_state(app_state.clone(), get_auth));
 
     Router::new()
         .route("/ping", get(ping))
-        .route("/create_api_key", post(create_api_key))
+        .route("/create_api_key",
+               post(create_api_key)
+                   .layer(middleware::from_fn_with_state(app_state.clone(), get_super)))
         .nest("/", protected_routes)
         .with_state(app_state)
 }
@@ -86,4 +90,44 @@ async fn set_wb_jwt(
         .map_err(|err| AppError::unexpected(&err))?;
 
     Ok(Json(Ok { ok: true }))
+}
+
+#[derive(Serialize)]
+struct JwtState {
+    expiry: usize
+}
+
+#[derive(Serialize)]
+struct Products {
+    current: usize,
+    max: u32,
+}
+
+#[derive(Serialize)]
+struct UserState {
+    jwt: Option<JwtState>,
+    products: Products
+}
+
+async fn get_state(
+    Extension(supplier): Extension<Supplier>,
+) -> Result<impl IntoResponse, AppError> {
+    let jwt_expire_ts = match &supplier.wb_jwt {
+        None => None,
+        Some(jwt) => Some(utils::get_jwt_expire(jwt)
+            .map_err(|err| AppError::unexpected(&err))?),
+    };
+
+    let current_monitored = supplier.goods.len();
+    let max_monitored = 100;
+
+    let us = UserState {
+        jwt: match jwt_expire_ts {
+            None => None,
+            Some(expiry) => Some(JwtState{ expiry: expiry * 1000 })
+        },
+        products: Products{ current: current_monitored, max: max_monitored }
+    };
+
+    Ok(Json(us))
 }
