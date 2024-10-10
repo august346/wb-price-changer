@@ -44,4 +44,8 @@ impl DB {
     pub async fn get_goods(&self, api_key: &Uuid) -> Result<Vec<Product>, String> {
         Product::get_by_apikey(&self.client, api_key).await
     }
+
+    pub async fn count_by_apikey(&self, api_key: &Uuid) -> Result<i64, String> {
+        Product::count_by_apikey(&self.client, api_key).await
+    }
 }

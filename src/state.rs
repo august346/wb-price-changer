@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -6,6 +5,7 @@ use tracing::debug;
 use crate::db::DB;
 use crate::db::product::Product;
 use crate::db::supplier::Supplier;
+use sqlx::types::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -42,10 +42,10 @@ impl TaskManager {
 }
 
 impl AppState {
-    pub async fn setup_app_state() -> Result<AppState, String> {
+    pub async fn setup_app_state(client: PgPool) -> Result<AppState, String> {
         Ok(AppState {
             task_manager: Arc::new(TaskManager::new()),
-            db: Arc::new(DB::new())
+            db: Arc::new(DB::new(client))
         })
     }
 
@@ -53,7 +53,7 @@ impl AppState {
         Ok(())
     }
 
-    pub async fn get_supplier(&self, api_key: &str) -> Result<Supplier, String> {
+    pub async fn get_supplier(&self, api_key: &Uuid) -> Result<Supplier, String> {
         match self.db.get_supplier(api_key).await {
             Ok(Some(supplier)) => Ok(supplier),
             Ok(None) => Err("Invalid api key".to_string()),
@@ -65,7 +65,7 @@ impl AppState {
         self.db.create_supplier().await
     }
 
-    pub async fn set_wb_jwt(&self, api_key: &str, jwt: &str) -> Result<(), String> {
+    pub async fn set_wb_jwt(&self, api_key: &Uuid, jwt: &str) -> Result<(), String> {
         self.db.set_wb_jwt(api_key, jwt).await
     }
 
@@ -73,11 +73,19 @@ impl AppState {
         self.db.get_suppliers(limit, page).await
     }
 
-    pub async fn set_wb_id(&self, api_key: &str, wb_id: i32) -> Result<(), String> {
+    pub async fn set_wb_id(&self, api_key: &Uuid, wb_id: i32) -> Result<(), String> {
         self.db.set_wb_id(api_key, wb_id).await
     }
 
-    pub async fn add_goods(&self, api_key: &str, products: &Vec<Product>) -> Result<(), String> {
+    pub async fn add_goods(&self, api_key: &Uuid, products: &Vec<Product>) -> Result<(), String> {
         self.db.add_goods(api_key, products).await
+    }
+
+    pub async fn get_goods(&self, api_key: &Uuid) -> Result<Vec<Product>, String> {
+        self.db.get_goods(api_key).await
+    }
+
+    pub async fn count_by_apikey(&self, api_key: &Uuid) -> Result<i64, String> {
+        self.db.count_by_apikey(api_key).await
     }
 }

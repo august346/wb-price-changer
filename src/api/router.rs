@@ -110,6 +110,7 @@ struct UserState {
 }
 
 async fn get_state(
+    State(state): State<Arc<AppState>>,
     Extension(supplier): Extension<Supplier>,
 ) -> Result<impl IntoResponse, AppError> {
     let jwt_expire_ts = match &supplier.wb_jwt {
@@ -118,7 +119,7 @@ async fn get_state(
             .map_err(|err| AppError::unexpected(&err))?),
     };
 
-    let current_monitored = supplier.goods.len();
+    let current_monitored = state.count_by_apikey(&supplier.api_key).await?;
     let max_monitored = 100;
 
     let us = UserState {

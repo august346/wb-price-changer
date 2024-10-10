@@ -19,18 +19,25 @@ pub async fn run(state: Arc<AppState>) -> Result<(), String> {
 
         for supplier in suppliers {
             if let (Some(wb_id), Some(wb_jwt)) = (supplier.wb_id, supplier.wb_jwt.as_ref()) {
+                let goods = match state.get_goods(&supplier.api_key).await {
+                    Ok(goods) => goods,
+                    Err(e) => {
+                        warn!("Failed to fetch goods for supplier {}: {}", supplier.api_key, e);
+                        continue;
+                    }
+                };
+
                 match calculate_and_set_price(
                     supplier.wb_id,
                     wb_jwt,
                     join_all(
-                        supplier
-                            .goods
+                        goods
                             .iter()
-                            .map(|(_, good)| async {
+                            .map(|good| async {
                                 state.task_manager.remove_task(good.id).await;
                                 good.clone()
-                            }))
-                        .await,
+                            })
+                    ).await,
                 ).await {
                     Ok((_, __, handle)) => {
                         if let Some(handle) = handle {
@@ -47,4 +54,3 @@ pub async fn run(state: Arc<AppState>) -> Result<(), String> {
         sleep(Duration::from_secs(PAUSE)).await;
     }
 }
-

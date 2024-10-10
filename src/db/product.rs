@@ -49,5 +49,19 @@ impl Product {
         .fetch_all(client)
         .await
         .map_err(|e| format!("Error fetching products: {:?}", e))
-    }   
+    }
+
+    pub async fn count_by_apikey(client: &PgPool, api_key: &Uuid) -> Result<i64, String> {
+        sqlx::query!(
+            r#"
+            SELECT COUNT(*) FROM products
+            WHERE supplier_api_key = $1
+            "#,
+            api_key
+        )
+        .fetch_one(client)
+        .await
+        .map_err(|e| format!("Error counting products: {:?}", e))
+        .map(|record| record.count.unwrap_or(0))
+    }
 }
