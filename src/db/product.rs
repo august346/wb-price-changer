@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use sqlx::types::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, sqlx::FromRow)]
 pub struct Product {
     pub id: i32,
-    pub price: i32
+    pub price: i32,
 }
 
 impl Product {
@@ -12,11 +13,11 @@ impl Product {
         Self { id, price }
     }
 
-    pub async fn create_many(client: &PgPool, api_key: &str, products: &Vec<Product>) -> Result<(), String> {
+    pub async fn create_many(client: &PgPool, api_key: &Uuid, products: &Vec<Product>) -> Result<(), String> {
         let mut transaction = client.begin().await.map_err(|e| e.to_string())?;
     
         for product in products {
-            let result = sqlx::query!(
+            sqlx::query!(
                 r#"
                 INSERT INTO products (id, price, supplier_api_key)
                 VALUES ($1, $2, $3)
@@ -28,15 +29,25 @@ impl Product {
                 api_key
             )
             .execute(&mut transaction)
-            .await;
-    
-            if let Err(e) = result {
-                transaction.rollback().await.map_err(|e| e.to_string())?;
-                return Err(format!("Error adding goods: {:?}", e));
-            }
+            .await
+            .map_err(|e| format!("Error adding goods: {:?}", e))?; 
         }
     
         transaction.commit().await.map_err(|e| e.to_string())?;
         Ok(())
-    }    
+    }
+
+    pub async fn get_by_apikey(client: &PgPool, api_key: &Uuid) -> Result<Vec<Product>, String> {
+        sqlx::query_as!(
+            Product,
+            r#"
+            SELECT id, price FROM products
+            WHERE supplier_api_key = $1
+            "#,
+            api_key
+        )
+        .fetch_all(client)
+        .await
+        .map_err(|e| format!("Error fetching products: {:?}", e))
+    }   
 }
