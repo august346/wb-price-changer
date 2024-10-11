@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE suppliers SET wb_jwt = $1 WHERE api_key = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ece9d702e725dc490ec489a3e60b20df76b755532d56a4f156e946e753ce2dc0"
+}

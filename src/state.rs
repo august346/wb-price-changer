@@ -104,4 +104,10 @@ impl AppState {
             .await
             .map_err(|err| utils::make_err(Box::new(err), "count by apikey"))
     }
+
+    pub async fn delete_by_id_and_api_key(&self, id: i32, api_key: &Uuid) -> Result<(), String> {
+        self.db.delete_by_id_and_api_key(id, api_key)
+            .await
+            .map_err(|err| utils::make_err(Box::new(err), "delete by id and apikey"))
+    }
 }

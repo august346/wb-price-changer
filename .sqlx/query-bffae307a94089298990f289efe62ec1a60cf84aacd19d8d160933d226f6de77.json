@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT api_key, wb_id, wb_jwt FROM suppliers WHERE api_key = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "api_key",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "wb_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "wb_jwt",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "bffae307a94089298990f289efe62ec1a60cf84aacd19d8d160933d226f6de77"
+}

@@ -65,4 +65,22 @@ impl Product {
             Err(err) => Err(err)
         }
     }
+
+    pub async fn delete_by_id_and_api_key(client: &PgPool, id: i32, api_key: &Uuid) -> Result<(), Error> {
+        if sqlx::query!(
+            r#"
+            DELETE FROM products
+            WHERE id = $1 AND supplier_api_key = $2
+            "#,
+            id,
+            api_key
+        )
+            .execute(client)
+            .await?
+            .rows_affected() == 0 {
+            return Err(Error::RowNotFound)
+        }
+
+        Ok(())
+    }
 }

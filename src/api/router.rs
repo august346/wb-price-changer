@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use axum::{Extension, Json, middleware, Router};
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use serde::{Deserialize, Serialize};
 use crate::api::error::AppError;
 use crate::api::middlewares::{get_auth, get_super};
@@ -19,6 +19,7 @@ pub fn get_router(app_state: Arc<AppState>) -> Router {
         .route("/state", get(get_state))
         .route("/set_wb_jwt", post(set_wb_jwt))
         .route("/update_price", post(update_price))
+        .route("/goods/:good_id", delete(delete_good))
         .layer(middleware::from_fn_with_state(app_state.clone(), get_auth));
 
     Router::new()
@@ -133,4 +134,16 @@ async fn get_state(
     };
 
     Ok(Json(us))
+}
+
+async fn delete_good(
+    Path(good_id): Path<i32>,
+    State(state): State<Arc<AppState>>,
+    Extension(supplier): Extension<Supplier>,
+) -> Result<impl IntoResponse, AppError> {
+    state.delete_by_id_and_api_key(good_id, &supplier.api_key)
+        .await
+        .map_err(|err| AppError::unexpected(&err))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

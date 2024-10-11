@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT api_key, wb_id, wb_jwt FROM suppliers\n            ORDER BY api_key\n            LIMIT $1 OFFSET $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "api_key",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "wb_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "wb_jwt",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "efa9d289437e06f3677b8c5f3dffc8077104cf47e3b6520880946752e2cc950f"
+}

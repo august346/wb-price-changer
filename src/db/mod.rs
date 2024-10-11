@@ -59,4 +59,8 @@ impl DB {
     pub async fn count_by_apikey(&self, api_key: &Uuid) -> Result<i64, Error> {
         Product::count_by_apikey(&self.client, api_key).await
     }
+
+    pub async fn delete_by_id_and_api_key(&self, id: i32, api_key: &Uuid) -> Result<(), Error> {
+        Product::delete_by_id_and_api_key(&self.client, id, api_key).await
+    }
 }
