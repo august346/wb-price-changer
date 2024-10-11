@@ -8,3 +8,25 @@ services:
       - "1002:8080"
     env_file:
       - .env
+    networks:
+      - postgres_network
+
+  postgres:
+    image: postgres:17.0
+    restart: always
+    command: postgres -c 'max_connections=2000'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=example
+      - POSTGRES_USER=wb_price_changer
+      - POSTGRES_DB=wb_price_changer
+    networks:
+      - postgres_network
+
+networks:
+  postgres_network:
+    driver: bridge
+
+volumes:
+    postgres_data:

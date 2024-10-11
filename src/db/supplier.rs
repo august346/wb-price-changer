@@ -1,12 +1,9 @@
-use std::collections::HashMap;
-use std::fmt;
 use std::fmt::{Display, Formatter};
-use sqlx::PgPool;
-use sqlx::types::Uuid;
+use sqlx::{Error, PgPool, types::Uuid};
 
-#[derive(Debug, Clone, sqlx::FromRow)] 
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Supplier {
-    pub api_key: Uuid, 
+    pub api_key: Uuid,
     pub wb_id: Option<i32>,
     pub wb_jwt: Option<String>,
 }
@@ -23,7 +20,7 @@ impl Display for Supplier {
 }
 
 impl Supplier {
-    pub async fn list(pool: &PgPool, limit: i64, offset: i64) -> Result<Vec<Supplier>, String> {
+    pub async fn list(pool: &PgPool, limit: i64, offset: i64) -> Result<Vec<Supplier>, Error> {
         sqlx::query_as!(
             Supplier,
             r#"
@@ -34,12 +31,11 @@ impl Supplier {
             limit,
             offset
         )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| format!("Error fetching suppliers: {:?}", e))
+            .fetch_all(pool)
+            .await
     }
 
-    pub async fn get(client: &PgPool, api_key: &Uuid) -> Result<Option<Supplier>, String> {
+    pub async fn get(client: &PgPool, api_key: &Uuid) -> Result<Option<Supplier>, Error> {
         sqlx::query_as!(
             Supplier,
             r#"
@@ -47,12 +43,11 @@ impl Supplier {
             "#,
             api_key
         )
-        .fetch_optional(client)
-        .await
-        .map_err(|e| format!("Error fetching supplier: {:?}", e))
+            .fetch_optional(client)
+            .await
     }
-    
-    pub async fn create(client: &PgPool) -> Result<Supplier, String> {
+
+    pub async fn create(client: &PgPool) -> Result<Supplier, Error> {
         sqlx::query_as!(
             Supplier,
             r#"
@@ -60,12 +55,11 @@ impl Supplier {
             RETURNING *
             "#, 
         )
-        .fetch_one(client)
-        .await
-        .map_err(|e| format!("Error creating supplier: {:?}", e))
+            .fetch_one(client)
+            .await
     }
 
-    pub async fn set_wb_jwt(client: &PgPool, api_key: &Uuid, jwt: &str) -> Result<(), String> {
+    pub async fn set_wb_jwt(client: &PgPool, api_key: &Uuid, jwt: &str) -> Result<(), Error> {
         sqlx::query!(
             r#"
             UPDATE suppliers SET wb_jwt = $1 WHERE api_key = $2
@@ -73,14 +67,13 @@ impl Supplier {
             jwt,
             api_key
         )
-        .execute(client)
-        .await
-        .map_err(|e| format!("Error updating wb_jwt: {:?}", e))?;
+            .execute(client)
+            .await?;
 
         Ok(())
     }
 
-    pub async fn set_wb_id(client: &PgPool, api_key: &Uuid, wb_id: i32) -> Result<(), String> {
+    pub async fn set_wb_id(client: &PgPool, api_key: &Uuid, wb_id: i32) -> Result<(), Error> {
         sqlx::query!(
             r#"
             UPDATE suppliers SET wb_id = $1 WHERE api_key = $2
@@ -88,9 +81,8 @@ impl Supplier {
             wb_id,
             api_key
         )
-        .execute(client)
-        .await
-        .map_err(|e| format!("Error updating wb_id: {:?}", e))?;
+            .execute(client)
+            .await?;
 
         Ok(())
     }

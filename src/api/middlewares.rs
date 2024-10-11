@@ -3,6 +3,7 @@ use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
+use uuid::Uuid;
 use crate::state::AppState;
 use crate::utils;
 
@@ -27,9 +28,11 @@ pub async fn get_auth(
 ) -> Result<Response, StatusCode> {
     if let Some(api_key_header) = request.headers().get("Authorization") {
         if let Ok(api_key) = api_key_header.to_str() {
-            if let Ok(supplier) = state.get_supplier(api_key).await {
-                request.extensions_mut().insert(supplier);
-                return Ok(next.run(request).await);
+            if let Ok(api_key) = Uuid::parse_str(api_key) {
+                if let Ok(supplier) = state.get_supplier(&api_key).await {
+                    request.extensions_mut().insert(supplier);
+                    return Ok(next.run(request).await);
+                }
             }
         }
     }

@@ -67,7 +67,7 @@ async fn create_api_key(State(state): State<Arc<AppState>>) -> Result<impl IntoR
         .await
         .map_err(|err| AppError::unexpected(&err))?;
 
-    Ok((StatusCode::CREATED, supplier.api_key))
+    Ok((StatusCode::CREATED, supplier.api_key.to_string()))
 }
 
 #[derive(Deserialize)]
@@ -119,7 +119,9 @@ async fn get_state(
             .map_err(|err| AppError::unexpected(&err))?),
     };
 
-    let current_monitored = state.count_by_apikey(&supplier.api_key).await?;
+    let current_monitored = state.count_by_apikey(&supplier.api_key)
+        .await
+        .map_err(|err| AppError::unexpected(&err))?;
     let max_monitored = 100;
 
     let us = UserState {
@@ -127,7 +129,7 @@ async fn get_state(
             None => None,
             Some(expiry) => Some(JwtState{ expiry: expiry * 1000 })
         },
-        products: Products{ current: current_monitored, max: max_monitored }
+        products: Products{ current: current_monitored as usize, max: max_monitored }
     };
 
     Ok(Json(us))

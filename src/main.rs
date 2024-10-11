@@ -17,12 +17,11 @@ async fn main() -> Result<(), String> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let app_state = Arc::new(AppState::setup_app_state()
+    let db_url = utils::get_env_var("DATABASE_URL")?;
+    let app_state = Arc::new(AppState::setup_app_state(&db_url)
         .await
         .expect("Failed to build AppState"));
     app_state.run_migrations().await?;
-
-    // wb::get_supplier_catalog(688305, None, None).await?;
 
     let api_handle = tokio::spawn({
         let app_state = app_state.clone();
