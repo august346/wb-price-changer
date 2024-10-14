@@ -41,20 +41,15 @@ async fn update_price(
     Extension(supplier): Extension<Supplier>,
     Json(input): Json<Product>,
 ) -> Result<impl IntoResponse, AppError> {
-    state.task_manager.remove_task(input.id).await;
-
     let wb_jwt = supplier.wb_jwt
         .ok_or_else(|| AppError::NoPermission("Need set JWT".to_string()))?;
 
     match calculate_and_set_price(supplier.wb_id, &wb_jwt, vec![Product::new(input.id, input.price)]).await {
-        Ok((supplier_id, products, handle)) => {
+        Ok((supplier_id, products)) => {
             if let Some(supplier_id) = supplier_id {
                 state.set_wb_id(&supplier.api_key, supplier_id)
                     .await
                     .map_err(|err| AppError::unexpected(&err))?;
-            }
-            if let Some(handle) = handle {
-                state.task_manager.add_task(input.id, handle).await;
             }
             let _ = state.add_goods(&supplier.api_key, &vec![input]).await;
             Ok(Json(PriceSet { products }))

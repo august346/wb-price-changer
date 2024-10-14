@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
-use tracing::debug;
 use crate::db::DB;
 use crate::db::product::Product;
 use crate::db::supplier::Supplier;
@@ -9,42 +5,12 @@ use uuid::Uuid;
 use crate::utils;
 
 pub struct AppState {
-    pub task_manager: TaskManager,
     db: DB,
-}
-
-pub struct TaskManager {
-    tasks: Mutex<HashMap<i32, JoinHandle<()>>>,
-}
-
-impl TaskManager {
-    fn new() -> Self {
-        TaskManager {
-            tasks: Mutex::new(HashMap::new()),
-        }
-    }
-
-    pub async fn remove_task(&self, id: i32) {
-        let mut tasks = self.tasks.lock().await;
-        if let Some(existing_task) = tasks.remove(&id) {
-            if !existing_task.is_finished() {
-                existing_task.abort();
-                debug!("task_id={id} aborted");
-            }
-        }
-    }
-
-    pub async fn add_task(&self, id: i32, handle: JoinHandle<()>) {
-        let mut tasks = self.tasks.lock().await;
-        tasks.insert(id, handle);
-        debug!("task_id={id} inserted");
-    }
 }
 
 impl AppState {
     pub async fn setup_app_state(db_url: &str) -> Result<AppState, String> {
         Ok(AppState {
-            task_manager: TaskManager::new(),
             db: DB::new(db_url).await?
         })
     }

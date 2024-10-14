@@ -5,7 +5,11 @@ pub fn count_new_basic(target_price: i32, current_discounted: i32, current_basic
     let new_discounted = target_price as f64 / 0.97;
     let new_base = (new_discounted / part) as i32;
 
-    let new_price = correct(new_base, part, target_price);
+    let mut new_price = correct(new_base, part, target_price);
+    let current_basic_rub = current_basic / 100;
+    if (new_price as f64 / current_basic_rub as f64) < 0.3 {
+        new_price = (current_basic_rub as f64 * 0.4).round() as i32
+    };
 
     ((new_price as f64 * part).floor() as i32, new_price)
 }

@@ -5,8 +5,6 @@ use std::io::Write;
 use serde_json::Value;
 use tempfile::NamedTempFile;
 use tokio::process::Command;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
 use crate::calc::count_new_basic;
 use crate::db::product::Product;
 use crate::utils;
@@ -21,7 +19,7 @@ pub async fn calculate_and_set_price(
     supplier_id: Option<i32>,
     token: &str,
     products: Vec<Product>,
-) -> Result<(Option<i32>, Vec<Product>, Option<JoinHandle<()>>), String> {
+) -> Result<(Option<i32>, Vec<Product>), String> {
     let prices_page = get_prices(supplier_id, products.iter().map(|p| p.id).collect::<Vec<i32>>())
         .await
         .map_err(|err| utils::make_err(err, "get prices"))?;
@@ -41,7 +39,7 @@ pub async fn calculate_and_set_price(
         .collect();
 
     if updated_products.is_empty() {
-        return Ok((supplier_id, vec![], None))
+        return Ok((supplier_id, vec![]))
     }
 
     let to_update: Vec<Product> = updated_products.iter().map(|(_, p)| p.clone()).collect();
@@ -49,14 +47,7 @@ pub async fn calculate_and_set_price(
         .await
         .map_err(|_| "Error setting price.".to_string())?;
 
-    let token_clone = token.to_string();
-    let handle = tokio::spawn(async move {
-        sleep(Duration::from_secs(10)).await;
-
-        let _ = one_more_try(prices_page.supplier_id, &token_clone, updated_products).await;
-    });
-
-    Ok((prices_page.supplier_id, to_update, Some(handle)))
+    Ok((prices_page.supplier_id, to_update))
 }
 
 pub async fn get_prices(supplier_id: Option<i32>, id_list: Vec<i32>) -> Result<ProductPricesPage, Box<dyn std::error::Error>> {
@@ -169,37 +160,6 @@ pub async fn set_price(token: &str, products: Vec<Product>) -> Result<(), reqwes
         .json(&serde_json::json!({ "data": data }))
         .send()
         .await?;
-
-    Ok(())
-}
-
-async fn one_more_try(supplier_id: Option<i32>, token: &str, updated_products: Vec<(i32, Product)>) -> Result<(), String> {
-    let prices_pate = get_prices(
-        supplier_id,
-        updated_products
-            .iter()
-            .map(|(_, p)| p.id)
-            .collect::<Vec<i32>>())
-        .await
-        .map_err(|_| "Error retrieving prices.".to_string())?;
-
-    let products: Vec<Product> = prices_pate
-        .prices
-        .iter()
-        .zip(updated_products.iter())
-        .filter(
-            |(product_price, (discounted, _))| product_price.total / 100 != *discounted)
-        .map(|(product_price, (_, product))| {
-            let (_, new_price) = count_new_basic(product.price, product_price.total, product_price.basic);
-            Product::new(product_price.id, new_price)
-        })
-        .collect();
-
-    if !products.is_empty() {
-        set_price(token, products)
-            .await
-            .map_err(|_| "Error setting price.".to_string())?;
-    }
 
     Ok(())
 }

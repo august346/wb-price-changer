@@ -1,4 +1,3 @@
-use futures::future::join_all;
 use std::sync::Arc;
 use std::time::Duration;
 use log::{info, warn};
@@ -18,7 +17,7 @@ pub async fn run(state: Arc<AppState>) -> Result<(), String> {
         };
 
         for supplier in suppliers {
-            if let (Some(wb_id), Some(wb_jwt)) = (supplier.wb_id, supplier.wb_jwt.as_ref()) {
+            if let Some(wb_jwt) = supplier.wb_jwt.as_ref() {
                 let goods = match state.get_goods(&supplier.api_key).await {
                     Ok(goods) => goods,
                     Err(e) => {
@@ -27,25 +26,12 @@ pub async fn run(state: Arc<AppState>) -> Result<(), String> {
                     }
                 };
 
-                match calculate_and_set_price(
+                if let Err(err) = calculate_and_set_price(
                     supplier.wb_id,
                     wb_jwt,
-                    join_all(
-                        goods
-                            .iter()
-                            .map(|good| async {
-                                state.task_manager.remove_task(good.id).await;
-                                good.clone()
-                            })
-                    ).await,
+                    goods
                 ).await {
-                    Ok((_, __, handle)) => {
-                        if let Some(handle) = handle {
-                            state.task_manager.add_task(wb_id, handle).await;
-                        }
-                        info!("Processed supplier: {}", supplier);
-                    }
-                    Err(err) => warn!("Failed background update sid={:?}: {}", supplier.wb_id, err)
+                    warn!("Failed background update sid={:?}: {}", supplier.wb_id, err)
                 };
             }
         }
