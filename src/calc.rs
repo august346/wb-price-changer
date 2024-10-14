@@ -1,39 +1,48 @@
+use std::str::FromStr;
+use rust_decimal::prelude::{Decimal, ToPrimitive};
+
 pub fn count_new_basic(target_price: i32, current_discounted: i32, current_basic: i32) -> (i32, i32) {
-    let part = current_discounted as f64 / current_basic as f64;
+    let part = Decimal::from(current_discounted) / Decimal::from(current_basic);
     let part = correct_part(part);
 
-    let new_discounted = target_price as f64 / 0.97;
-    let new_base = (new_discounted / part) as i32;
+    let new_discounted = Decimal::from(target_price) / _d("0.97");
+    let new_base = (new_discounted / part).round().to_i32().expect("smth wrong");
 
-    let mut new_price = correct(new_base, part, target_price);
-    let current_basic_rub = current_basic / 100;
-    if (new_price as f64 / current_basic_rub as f64) < 0.3 {
-        new_price = (current_basic_rub as f64 * 0.4).round() as i32
+    let mut new_price = correct(new_base, part, target_price, 0);
+    let current_basic_rub = Decimal::from(current_basic) / _d("100");
+
+    if (Decimal::from(new_price) / current_basic_rub) <= _d("0.3") {
+        new_price = (current_basic_rub * _d("0.4")).round().to_i32().expect("smth wrong");
     };
 
-    ((new_price as f64 * part).floor() as i32, new_price)
+    ((Decimal::from(new_price) * part).floor().to_i32().expect("smth wrong"), new_price)
 }
 
-fn correct_part(start: f64) -> f64 {
-    let rounded_part_1000 = (start * 1000.0).round();
-    let last_digit = rounded_part_1000 as i64 % 10;
+fn correct_part(start: Decimal) -> Decimal {
+    let rounded_part_1000 = (start * _d("1000")).round();
+    let last_digit = rounded_part_1000.to_i64().expect("smth wrong") % 10;
 
     if last_digit == 5 {
-        rounded_part_1000 / 1000.0
+        rounded_part_1000 / _d("1000")
     } else {
         start
     }
 }
 
-fn correct(base: i32, part: f64, target: i32) -> i32 {
-    let discounted = (base as f64 * part).floor();
-    let m_target = (discounted * 0.97).floor() as i32;
+fn correct(base: i32, part: Decimal, target: i32, base_diff: i32) -> i32 {
+    let base = base + base_diff;
+    let discounted = (Decimal::from(base) * part).floor();
+    let m_target = (discounted * _d("0.97")).floor().to_i32().expect("smth wrong");
 
-    if m_target == target {
-        base
-    } else if m_target > target {
-        correct(base - 1, part, target)
+    if m_target > target && base_diff <= 0 {
+        correct(base, part, target, -1)
+    } else if m_target < target && base_diff >= 0 {
+        correct(base, part, target, 1)
     } else {
-        correct(base + 1, part, target)
+        base
     }
+}
+
+fn _d(s: &str) -> Decimal {
+    return Decimal::from_str(s).expect("smth wrong")
 }

@@ -19,3 +19,4 @@ thiserror = "1.0.64"
 futures = "0.3.31"
 jsonwebtoken = "9.3.0"
 sqlx = { version = "0.8.2", features = ["migrate", "postgres", "runtime-tokio", "uuid", "chrono"] }
+rust_decimal = "1.36.0"
